@@ -48,11 +48,9 @@ func (s Sphere) intersect(ray *Ray) (int, float64) {
 		i2 := b + det
 		if i2 > 0 {
 			if i1 < 0 {
-				if i2 < dist {
-					retval = -1
-					dist = i2
-				}
-			} else if i1 < dist {
+				retval = -1
+				dist = i2
+			} else {
 				retval = 1
 				dist = i1
 			}
@@ -81,11 +79,15 @@ type Plane struct {
 
 func (p Plane) intersect(ray *Ray) (int, float64) {
 	hit := 0
+	dist := 0.0
 	denom := p.normal.dot(ray.direction)
 	if denom != 0 {
-		hit = 1
+		dist = p.normal.dot(p.origin.subtract(ray.origin)) / denom
+		if dist > 0 {
+			hit = 1
+		}
 	}
-	return hit, p.origin.subtract(ray.origin).dot(p.normal) / denom
+	return hit, dist
 }
 func (p Plane) getColor() *vec3 {
 	return p.color
@@ -112,19 +114,18 @@ func (l Light) getCenter() *vec3 {
 	return l.emitter.getCenter()
 }
 func (l Light) getNormal(p *vec3) *vec3 {
-	return l.emitter.getNormal(p)
+	return l.emitter.getNormal(p).normalize()
 }
 
 func getColor(ray *Ray, scene *Scene) (r uint8, g uint8, b uint8) {
 	var foundPrim Primitive = nil
 	color := &vec3{0, 0, 0}
 	dist := math.MaxFloat64
-	res := 0
 	for _, prim := range scene.primitives {
-		res, dist = prim.intersect(ray)
-		if res != 0 {
+		res, ndist := prim.intersect(ray)
+		if res != 0 && ndist < dist {
 			foundPrim = prim
-			break //TODO: Implement actual depth
+			dist = ndist
 		}
 	}
 
@@ -160,31 +161,60 @@ func getColor(ray *Ray, scene *Scene) (r uint8, g uint8, b uint8) {
 }
 
 type WorkUnit struct {
-	x, y  int32
+	x, y  float64
 	ray   *Ray
 	scene *Scene
 }
 type ResultUnit struct {
-	x, y    int32
+	x, y    float64
 	r, g, b uint8
+}
+type Matrix4x4 struct {
+	matx [4][4]float64
+}
+
+func (m Matrix4x4) multVecMatrix(v *vec3) *vec3 {
+	x := v.x*m.matx[0][0] + v.y*m.matx[1][0] + v.z*m.matx[2][0] + m.matx[3][0]
+	y := v.x*m.matx[0][1] + v.y*m.matx[1][1] + v.z*m.matx[2][1] + m.matx[3][1]
+	z := v.x*m.matx[0][2] + v.y*m.matx[1][2] + v.z*m.matx[2][2] + m.matx[3][2]
+	w := v.x*m.matx[0][3] + v.y*m.matx[1][3] + v.z*m.matx[2][3] + m.matx[3][3]
+	return &vec3{x / w, y / w, z / w}
+}
+
+func (m Matrix4x4) multDirMatrix(v *vec3) *vec3 {
+	x := v.x*m.matx[0][0] + v.y*m.matx[1][0] + v.z*m.matx[2][0]
+	y := v.x*m.matx[0][1] + v.y*m.matx[1][1] + v.z*m.matx[2][1]
+	z := v.x*m.matx[0][2] + v.y*m.matx[1][2] + v.z*m.matx[2][2]
+	return &vec3{x, y, z}
 }
 
 func main() {
 	fmt.Println("HI!")
 	outi := image.NewNRGBA(image.Rect(0, 0, 512, 512))
 	scene := Scene{
-		primitives: []Primitive{Sphere{1, &vec3{-2, 0, 20}, &vec3{1, 0, 0}},
-			Sphere{1, &vec3{-2.5, 0.5, 5}, &vec3{0, 1, 0}},
-			Plane{&vec3{0, 1, 0}, &vec3{0, -1, 0}, &vec3{0, 0, 1}},
-			Light{&Sphere{0.3, &vec3{-1, -1, 4}, &vec3{1, 1, 1}}, &vec3{1, 1, 1}}},
-		cam: Camera{&vec3{0, 0, -5}, &vec3{0, 0, 0}},
+		primitives: []Primitive{Sphere{1, &vec3{0, 0, -1}, &vec3{1, 0, 0}},
+			Sphere{0.3, &vec3{0, 0, 0}, &vec3{0, 1, 0}},
+			// Plane{&vec3{2, 0, 0}, &vec3{-1, 0, 1}, &vec3{0, 0, 1}},
+			Plane{&vec3{0, 0, -2}, &vec3{0, 1, .2}, &vec3{1, 1, 1}},
+			Light{&Sphere{0.1, &vec3{0, 0.5, 2}, &vec3{1, 1, 1}}, &vec3{1, 1, 1}}},
+		cam: Camera{&vec3{0, 0, 2}, &vec3{0, 0, 0}},
 	}
-	//TODO: Use this
-	//scenePlane := Plane{&vec3{0,0,0}, &vec3{0,0,1}}
 
 	imgSize := outi.Bounds().Size().X * outi.Bounds().Size().Y
 	jobs := make(chan WorkUnit, imgSize)
 	results := make(chan ResultUnit, imgSize)
+	screenX := float64(outi.Bounds().Size().X)
+	screenY := float64(outi.Bounds().Size().Y)
+	aspectRatio := screenX / screenY
+	fovDeg := 60.0
+	// Convert to radians and divide by two
+	angle := math.Tan(fovDeg * math.Pi / 180 / 2)
+	var c2wmatrix [4][4]float64
+	c2wmatrix[0][0] = 1
+	c2wmatrix[1][1] = 1
+	c2wmatrix[2][2] = 1
+	c2wmatrix[3][3] = 1
+	cam2World := Matrix4x4{c2wmatrix}
 
 	for w := 1; w <= 8; w++ {
 		go func() {
@@ -195,13 +225,15 @@ func main() {
 		}()
 	}
 
-	for x := int32(0); x < int32(outi.Bounds().Size().X); x++ {
-		for y := int32(0); y < int32(outi.Bounds().Size().Y); y++ {
-			origin := scene.cam.location.get_copy()
+	origin := scene.cam.location.get_copy()
+	origin = cam2World.multVecMatrix(origin)
+	for x := 0.0; x < screenX; x++ {
+		for y := 0.0; y < screenY; y++ {
 			// Get pixel in terms of world space on the scene plane
-			u := float64(x) / float64(outi.Bounds().Size().X)
-			v := float64(y) / float64(outi.Bounds().Size().Y)
-			ray := Ray{origin, (&vec3{-1.0 * 2.0 * u, -1.0 + 2.0*v, 0}).subtract(origin).normalize()}
+			u := (2*((x+0.5)/screenX) - 1) * angle * aspectRatio
+			v := (1 - 2*((y+0.5)/screenY)) * angle
+			rayD := cam2World.multDirMatrix(&vec3{u, v, -1}).normalize()
+			ray := Ray{origin, rayD}
 			jobs <- WorkUnit{x, y, &ray, &scene}
 		}
 	}

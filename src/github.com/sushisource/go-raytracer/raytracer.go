@@ -7,59 +7,6 @@ import "image/png"
 import "image/color"
 import "os"
 
-type vec3 struct {
-	x, y, z float64
-}
-
-func (v *vec3) length() float64 {
-	return math.Sqrt(v.x*v.x + v.y*v.y + v.z*v.z)
-}
-
-// MUTATING METHODS -----------------------------------------------------------
-func (v *vec3) normalize() *vec3 {
-	l := 1.0 / v.length()
-	v.x *= l
-	v.y *= l
-	v.z *= l
-	return v
-}
-
-func (v *vec3) neg() *vec3 {
-	v.x = -v.x
-	v.y = -v.y
-	v.z = -v.z
-	return v
-}
-
-// COPYING METHODS ------------------------------------------------------------
-func (v *vec3) get_copy() *vec3 {
-	return &vec3{v.x, v.y, v.z}
-}
-
-func (v *vec3) subtract(v2 *vec3) *vec3 {
-	return &vec3{v.x - v2.x, v.y - v2.y, v.z - v2.z}
-}
-
-func (v *vec3) add(v2 *vec3) *vec3 {
-	return &vec3{v.x + v2.x, v.y + v2.y, v.z + v2.z}
-}
-
-func (v *vec3) dot(v2 *vec3) float64 {
-	return v.x*v2.x + v.y*v2.y + v.z*v2.z
-}
-
-func (v *vec3) scale(mag float64) *vec3 {
-	return &vec3{v.x * mag, v.y * mag, v.z * mag}
-}
-
-func (v *vec3) mult(v2 *vec3) *vec3 {
-	return &vec3{v.x * v2.x, v.y * v2.y, v.z * v2.z}
-}
-
-func (v *vec3) toRGB() (uint8, uint8, uint8) {
-	return uint8(v.x * 255), uint8(v.y * 255), uint8(v.z * 255)
-}
-
 type Ray struct {
 	origin    *vec3
 	direction *vec3
@@ -129,6 +76,25 @@ func (s Sphere) getNormal(p *vec3) *vec3 {
 type Plane struct {
 	origin *vec3
 	normal *vec3
+	color  *vec3
+}
+
+func (p Plane) intersect(ray *Ray) (int, float64) {
+	hit := 0
+	denom := p.normal.dot(ray.direction)
+	if denom != 0 {
+		hit = 1
+	}
+	return hit, p.origin.subtract(ray.origin).dot(p.normal) / denom
+}
+func (p Plane) getColor() *vec3 {
+	return p.color
+}
+func (p Plane) getCenter() *vec3 {
+	return p.origin
+}
+func (p Plane) getNormal(p1 *vec3) *vec3 {
+	return p.normal
 }
 
 type Light struct {
@@ -170,6 +136,7 @@ func getColor(ray *Ray, scene *Scene) (r uint8, g uint8, b uint8) {
 	case Light:
 		return 255, 255, 255
 	default:
+		// Intersection point
 		pi := ray.origin.add(ray.direction.scale(dist))
 		//TODO: Would be better to maintain a separate list of lights
 		for _, lPrim := range scene.primitives {
@@ -208,6 +175,7 @@ func main() {
 	scene := Scene{
 		primitives: []Primitive{Sphere{1, &vec3{-2, 0, 20}, &vec3{1, 0, 0}},
 			Sphere{1, &vec3{-2.5, 0.5, 5}, &vec3{0, 1, 0}},
+			Plane{&vec3{0, 1, 0}, &vec3{0, -1, 0}, &vec3{0, 0, 1}},
 			Light{&Sphere{0.3, &vec3{-1, -1, 4}, &vec3{1, 1, 1}}, &vec3{1, 1, 1}}},
 		cam: Camera{&vec3{0, 0, -5}, &vec3{0, 0, 0}},
 	}

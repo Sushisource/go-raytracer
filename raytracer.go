@@ -181,7 +181,7 @@ func getColor(ray *Ray, scene *Scene) (r uint8, g uint8, b uint8) {
 				n := foundPrim.getNormal(pi)
 				dot := n.dot(l)
 				if dot > 0 {
-					//TODO: Give materials a diffuse property
+					// TODO: Use real materials
 					diff := dot * 0.8
 					color = color.add(lPrim.getColor().mult(foundPrim.getColor())).scale(diff)
 				}
@@ -190,6 +190,16 @@ func getColor(ray *Ray, scene *Scene) (r uint8, g uint8, b uint8) {
 	}
 
 	return color.toRGB()
+}
+
+type WorkUnit struct {
+	x, y  int32
+	ray   *Ray
+	scene *Scene
+}
+type ResultUnit struct {
+	x, y    int32
+	r, g, b uint8
 }
 
 func main() {
@@ -204,6 +214,19 @@ func main() {
 	//TODO: Use this
 	//scenePlane := Plane{&vec3{0,0,0}, &vec3{0,0,1}}
 
+	imgSize := outi.Bounds().Size().X * outi.Bounds().Size().Y
+	jobs := make(chan WorkUnit, imgSize)
+	results := make(chan ResultUnit, imgSize)
+
+	for w := 1; w <= 8; w++ {
+		go func() {
+			for wu := range jobs {
+				r, g, b := getColor(wu.ray, wu.scene)
+				results <- ResultUnit{wu.x, wu.y, r, g, b}
+			}
+		}()
+	}
+
 	for x := int32(0); x < int32(outi.Bounds().Size().X); x++ {
 		for y := int32(0); y < int32(outi.Bounds().Size().Y); y++ {
 			origin := scene.cam.location.get_copy()
@@ -211,9 +234,14 @@ func main() {
 			u := float64(x) / float64(outi.Bounds().Size().X)
 			v := float64(y) / float64(outi.Bounds().Size().Y)
 			ray := Ray{origin, (&vec3{-1.0 * 2.0 * u, -1.0 + 2.0*v, 0}).subtract(origin).normalize()}
-			r, g, b := getColor(&ray, &scene)
-			outi.Set(int(x), int(y), color.NRGBA{r, g, b, 255})
+			jobs <- WorkUnit{x, y, &ray, &scene}
 		}
+	}
+	close(jobs)
+
+	for a := 1; a <= imgSize; a++ {
+		res := <-results
+		outi.Set(int(res.x), int(res.y), color.NRGBA{res.r, res.g, res.b, 255})
 	}
 
 	toimg, _ := os.Create("output.png")

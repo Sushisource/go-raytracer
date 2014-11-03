@@ -8,8 +8,9 @@ import "image/color"
 import "os"
 
 type Ray struct {
-	origin    *vec3
-	direction *vec3
+	origin      *vec3
+	direction   *vec3
+	maxDistance float64
 }
 
 type Camera struct {
@@ -42,12 +43,11 @@ type Scene struct {
 func raytrace(ray *Ray, scene *Scene, curDepth int) *vec3 {
 	var foundPrim Primitive = nil
 	color := &vec3{0, 0, 0}
-	dist := math.MaxFloat64
+	ray.maxDistance = math.MaxFloat64
 	for _, prim := range scene.primitives {
-		res, ndist := prim.intersect(ray)
-		if res != 0 && ndist < dist {
+		res, _ := prim.intersect(ray)
+		if res != 0 {
 			foundPrim = prim
-			dist = ndist
 		}
 	}
 
@@ -60,7 +60,7 @@ func raytrace(ray *Ray, scene *Scene, curDepth int) *vec3 {
 		return &vec3{1, 1, 1}
 	default:
 		// Intersection point
-		pi := ray.origin.add(ray.direction.scale(dist))
+		pi := ray.origin.add(ray.direction.scale(ray.maxDistance))
 		n := foundPrim.getNormal(pi)
 		//TODO: Would be better to maintain a separate list of lights
 		for _, lPrim := range scene.primitives {
@@ -71,7 +71,8 @@ func raytrace(ray *Ray, scene *Scene, curDepth int) *vec3 {
 				l := lPrim.getCenter().subtract(pi)
 				l.normalize()
 				// Shadow
-				shadeRay := &Ray{pi.add(l.scale(0.0001)), l}
+				shadeRay := &Ray{pi.add(l.scale(0.0001)), l, 0}
+				shadeRay.maxDistance = l.length()
 				for _, sPrim := range scene.primitives {
 					switch sPrim.(type) {
 					case Light:
@@ -79,7 +80,7 @@ func raytrace(ray *Ray, scene *Scene, curDepth int) *vec3 {
 					default:
 						res, _ := sPrim.intersect(shadeRay)
 						if res != 0 {
-							// shade = 0
+							shade = 0
 							break
 						}
 					}
@@ -106,7 +107,7 @@ func raytrace(ray *Ray, scene *Scene, curDepth int) *vec3 {
 			R := ray.direction.subtract(n.scale(2 * ray.direction.dot(n)))
 			if curDepth < 8 { // TODO: Put trace depth and eps values in constants
 				// epsilon val is small
-				rRay := &Ray{pi.add(R.scale(0.0001)), R}
+				rRay := &Ray{pi.add(R.scale(0.0001)), R, 0}
 				rCol := raytrace(rRay, scene, curDepth+1)
 				color = color.add(rCol.mult(foundPrim.getColor()).scale(reflectivity))
 			}
@@ -174,7 +175,7 @@ func main() {
 			u := (2*((x+0.5)/screenX) - 1) * angle * aspectRatio
 			v := (1 - 2*((y+0.5)/screenY)) * angle
 			rayD := cam2World.multDirMatrix(&vec3{u, v, -1}).normalize()
-			ray := Ray{origin, rayD}
+			ray := Ray{origin, rayD, 0}
 			jobs <- WorkUnit{x, y, &ray, &scene}
 		}
 	}

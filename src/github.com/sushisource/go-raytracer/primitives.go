@@ -46,9 +46,8 @@ type Sphere struct {
 func (s Sphere) intersect(ray *Ray) (int, float64) {
 	v := ray.origin.subtract(s.center)
 	b := -v.dot(ray.direction)
-	dist := math.MaxFloat64
 	if b < 0 {
-		return 0, dist
+		return 0, ray.maxDistance
 	}
 	det := (b * b) - v.dot(v) + (s.radius * s.radius)
 	retval := 0
@@ -57,16 +56,16 @@ func (s Sphere) intersect(ray *Ray) (int, float64) {
 		i1 := b - det
 		i2 := b + det
 		if i2 > 0 {
-			if i1 < 0 {
+			if i1 < 0 && ray.maxDistance > i2 {
 				retval = -1
-				dist = i2
-			} else {
+				ray.maxDistance = i2
+			} else if ray.maxDistance > i1 {
 				retval = 1
-				dist = i1
+				ray.maxDistance = i1
 			}
 		}
 	}
-	return retval, dist
+	return retval, ray.maxDistance
 }
 
 func (s Sphere) getCenter() *vec3 {
@@ -89,8 +88,9 @@ func (p Plane) intersect(ray *Ray) (int, float64) {
 	denom := p.normal.dot(ray.direction)
 	if denom != 0 {
 		dist = p.normal.dot(p.origin.subtract(ray.origin)) / denom
-		if dist > 0 {
+		if dist > 0 && dist < ray.maxDistance {
 			hit = 1
+			ray.maxDistance = dist
 		}
 	}
 	return hit, dist

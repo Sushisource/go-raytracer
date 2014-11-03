@@ -52,5 +52,8 @@ func (v *vec3) mult(v2 *vec3) *vec3 {
 }
 
 func (v *vec3) toRGB() (uint8, uint8, uint8) {
-	return uint8(v.x * 255), uint8(v.y * 255), uint8(v.z * 255)
+	r := math.Min(v.x*255, 255)
+	g := math.Min(v.y*255, 255)
+	b := math.Min(v.z*255, 255)
+	return uint8(r), uint8(g), uint8(b)
 }

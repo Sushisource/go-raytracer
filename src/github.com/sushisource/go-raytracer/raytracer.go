@@ -66,13 +66,37 @@ func raytrace(ray *Ray, scene *Scene, curDepth int) *vec3 {
 		for _, lPrim := range scene.primitives {
 			switch lPrim.(type) {
 			case Light:
+				shade := 1.0
 				// Get direction to light
 				l := lPrim.getCenter().subtract(pi)
 				l.normalize()
-				dot := n.dot(l)
+				// Shadow
+				shadeRay := &Ray{pi.add(l.scale(0.0001)), l}
+				for _, sPrim := range scene.primitives {
+					switch sPrim.(type) {
+					case Light:
+						continue
+					default:
+						res, _ := sPrim.intersect(shadeRay)
+						if res != 0 {
+							// shade = 0
+							break
+						}
+					}
+				}
+				// Diffuse
+				dot := l.dot(n)
 				if dot > 0 {
-					diff := dot * foundPrim.getDiffuse()
+					diff := dot * foundPrim.getDiffuse() * shade
 					color = color.add(lPrim.getColor().mult(foundPrim.getColor())).scale(diff)
+				}
+				// Specular
+				Vs := ray.direction
+				Rs := l.subtract(n.scale(2 * dot))
+				dot = Vs.dot(Rs)
+				if dot > 0 {
+					spec := math.Pow(dot, 20) * foundPrim.getSpecular() * shade
+					color = color.add(lPrim.getColor().scale(spec))
 				}
 			}
 		}
@@ -105,13 +129,13 @@ type ResultUnit struct {
 func main() {
 	outi := image.NewNRGBA(image.Rect(0, 0, 512, 512))
 	scene := Scene{
-		primitives: []Primitive{Sphere{1, &vec3{0, 1, -1}, &Material{&vec3{1, 1, 1}, 0.8, 0.2}},
-			Sphere{0.3, &vec3{0, 0, 0}, &Material{&vec3{0, 1, 0}, 0, 1}},
-			Plane{&vec3{2, 0, 0}, &vec3{-1, 0, 0}, &Material{&vec3{0, 0, 1}, 0, 1}},
-			Plane{&vec3{-2, 0, 0}, &vec3{1, 0, 0}, &Material{&vec3{1, 0, 1}, 0, 1}},
-			Plane{&vec3{0, 0, -2}, &vec3{0, 0, 1}, &Material{&vec3{1, 1, 1}, 0, 1}},
-			Plane{&vec3{0, -2, 0}, &vec3{0, 1, 0}, &Material{&vec3{1, 1, 1}, 0, 1}},
-			Light{&Sphere{0.1, &vec3{0.5, 0.5, 2}, &Material{&vec3{1, 1, 1}, 0, 0}}, &Material{&vec3{1, 1, 1}, 0, 0}}},
+		primitives: []Primitive{Sphere{1, &vec3{0, 1, -1}, &Material{&vec3{1, 1, 1}, 0.8, 0.2, 0.5}},
+			Sphere{0.3, &vec3{0, 0, 0}, &Material{&vec3{0, 1, 0}, 0, 0.8, 0.5}},
+			Plane{&vec3{2, 0, 0}, &vec3{-1, 0, 0}, &Material{&vec3{0, 0, 1}, 0, 1, 0}},
+			Plane{&vec3{-2, 0, 0}, &vec3{1, 0, 0}, &Material{&vec3{1, 0, 1}, 0, 1, 0}},
+			Plane{&vec3{0, 0, -2}, &vec3{0, 0, 1}, &Material{&vec3{1, 1, 1}, 0, 1, 0}},
+			Plane{&vec3{0, -2, 0}, &vec3{0, 1, 0}, &Material{&vec3{1, 1, 1}, 0, 1, 0}},
+			Light{&Sphere{0.1, &vec3{0.5, 0.5, 2}, &Material{&vec3{1, 1, 1}, 0, 0, 0}}, &Material{&vec3{1, 1, 1}, 0, 0, 0}}},
 		cam: Camera{&vec3{0, 0, 3}, &vec3{0, 0, 0}},
 	}
 

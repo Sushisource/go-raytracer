@@ -13,13 +13,15 @@ type Primitive interface {
 type MatI interface {
 	getColor() *vec3
 	getDiffuse() float64
+	getSpecular() float64
 	getReflectivity() float64
 }
 
 type Material struct {
-	color   *vec3
-	reflect float64
-	diffuse float64
+	color    *vec3
+	reflect  float64
+	diffuse  float64
+	specular float64
 }
 
 func (m Material) getColor() *vec3 {
@@ -27,6 +29,9 @@ func (m Material) getColor() *vec3 {
 }
 func (m Material) getDiffuse() float64 {
 	return m.diffuse
+}
+func (m Material) getSpecular() float64 {
+	return m.specular
 }
 func (m Material) getReflectivity() float64 {
 	return m.reflect
@@ -42,6 +47,9 @@ func (s Sphere) intersect(ray *Ray) (int, float64) {
 	v := ray.origin.subtract(s.center)
 	b := -v.dot(ray.direction)
 	dist := math.MaxFloat64
+	if b < 0 {
+		return 0, dist
+	}
 	det := (b * b) - v.dot(v) + (s.radius * s.radius)
 	retval := 0
 	if det > 0 {

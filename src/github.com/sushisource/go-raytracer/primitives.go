@@ -6,14 +6,32 @@ type Primitive interface {
 	// 1 = hit, 0 = miss, -1 = ray began inside primitive
 	intersect(ray *Ray) (int, float64)
 	getCenter() *vec3
-	getColor() *vec3
 	getNormal(p *vec3) *vec3
+	MatI
+}
+
+type MatI interface {
+	getColor() *vec3
+	getDiffuse() float64
+}
+
+type Material struct {
+	color   *vec3
+	reflect float64
+	diffuse float64
+}
+
+func (m Material) getColor() *vec3 {
+	return m.color
+}
+func (m Material) getDiffuse() float64 {
+	return m.diffuse
 }
 
 type Sphere struct {
 	radius float64
 	center *vec3
-	color  *vec3
+	*Material
 }
 
 func (s Sphere) intersect(ray *Ray) (int, float64) {
@@ -43,10 +61,6 @@ func (s Sphere) getCenter() *vec3 {
 	return s.center
 }
 
-func (s Sphere) getColor() *vec3 {
-	return s.color
-}
-
 func (s Sphere) getNormal(p *vec3) *vec3 {
 	return p.subtract(s.center).scale(1.0 / s.radius)
 }
@@ -54,7 +68,7 @@ func (s Sphere) getNormal(p *vec3) *vec3 {
 type Plane struct {
 	origin *vec3
 	normal *vec3
-	color  *vec3
+	*Material
 }
 
 func (p Plane) intersect(ray *Ray) (int, float64) {
@@ -69,9 +83,6 @@ func (p Plane) intersect(ray *Ray) (int, float64) {
 	}
 	return hit, dist
 }
-func (p Plane) getColor() *vec3 {
-	return p.color
-}
 func (p Plane) getCenter() *vec3 {
 	return p.origin
 }
@@ -81,14 +92,11 @@ func (p Plane) getNormal(p1 *vec3) *vec3 {
 
 type Light struct {
 	emitter Primitive
-	color   *vec3
+	*Material
 }
 
 func (l Light) intersect(ray *Ray) (int, float64) {
 	return l.emitter.intersect(ray)
-}
-func (l Light) getColor() *vec3 {
-	return l.color
 }
 func (l Light) getCenter() *vec3 {
 	return l.emitter.getCenter()

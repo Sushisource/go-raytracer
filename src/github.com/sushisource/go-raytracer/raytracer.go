@@ -54,8 +54,7 @@ func getColor(ray *Ray, scene *Scene) (r uint8, g uint8, b uint8) {
 				n := foundPrim.getNormal(pi)
 				dot := n.dot(l)
 				if dot > 0 {
-					// TODO: Use real materials
-					diff := dot * 0.8
+					diff := dot * foundPrim.getDiffuse()
 					color = color.add(lPrim.getColor().mult(foundPrim.getColor())).scale(diff)
 				}
 			}
@@ -97,13 +96,13 @@ func main() {
 	fmt.Println("HI!")
 	outi := image.NewNRGBA(image.Rect(0, 0, 512, 512))
 	scene := Scene{
-		primitives: []Primitive{Sphere{1, &vec3{0, 0, -1}, &vec3{1, 0, 0}},
-			Sphere{0.3, &vec3{0, 0, 0}, &vec3{0, 1, 0}},
-			Plane{&vec3{2, 0, 0}, &vec3{-1, 0, 0}, &vec3{0, 0, 1}},
-			Plane{&vec3{-2, 0, 0}, &vec3{1, 0, 0}, &vec3{1, 0, 1}},
-			Plane{&vec3{0, 0, -2}, &vec3{0, 0, 1}, &vec3{1, 1, 1}},
-			Plane{&vec3{0, -2, 0}, &vec3{0, 1, 0}, &vec3{1, 1, 1}},
-			Light{&Sphere{0.1, &vec3{0, 0.5, 2}, &vec3{1, 1, 1}}, &vec3{1, 1, 1}}},
+		primitives: []Primitive{Sphere{1, &vec3{0, 0, -1}, &Material{&vec3{1, 0, 0}, 0.5, 0.8}},
+			Sphere{0.3, &vec3{0, 0, 0}, &Material{&vec3{0, 1, 0}, 0, 1}},
+			Plane{&vec3{2, 0, 0}, &vec3{-1, 0, 0}, &Material{&vec3{0, 0, 1}, 0, 1}},
+			Plane{&vec3{-2, 0, 0}, &vec3{1, 0, 0}, &Material{&vec3{1, 0, 1}, 0, 1}},
+			Plane{&vec3{0, 0, -2}, &vec3{0, 0, 1}, &Material{&vec3{1, 1, 1}, 0, 1}},
+			Plane{&vec3{0, -2, 0}, &vec3{0, 1, 0}, &Material{&vec3{1, 1, 1}, 0, 1}},
+			Light{&Sphere{0.1, &vec3{0, 0.5, 2}, &Material{&vec3{1, 1, 1}, 0, 0}}, &Material{&vec3{1, 1, 1}, 0, 0}}},
 		cam: Camera{&vec3{0, 0, 3}, &vec3{0, 0, 0}},
 	}
 

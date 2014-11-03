@@ -13,6 +13,7 @@ type Primitive interface {
 type MatI interface {
 	getColor() *vec3
 	getDiffuse() float64
+	getReflectivity() float64
 }
 
 type Material struct {
@@ -26,6 +27,9 @@ func (m Material) getColor() *vec3 {
 }
 func (m Material) getDiffuse() float64 {
 	return m.diffuse
+}
+func (m Material) getReflectivity() float64 {
+	return m.reflect
 }
 
 type Sphere struct {

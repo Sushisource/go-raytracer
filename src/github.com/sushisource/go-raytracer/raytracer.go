@@ -16,13 +16,30 @@ type Camera struct {
 	location  *vec3
 	points_at *vec3
 }
+type Matrix4x4 struct {
+	matx [4][4]float64
+}
+
+func (m Matrix4x4) multVecMatrix(v *vec3) *vec3 {
+	x := v.x*m.matx[0][0] + v.y*m.matx[1][0] + v.z*m.matx[2][0] + m.matx[3][0]
+	y := v.x*m.matx[0][1] + v.y*m.matx[1][1] + v.z*m.matx[2][1] + m.matx[3][1]
+	z := v.x*m.matx[0][2] + v.y*m.matx[1][2] + v.z*m.matx[2][2] + m.matx[3][2]
+	w := v.x*m.matx[0][3] + v.y*m.matx[1][3] + v.z*m.matx[2][3] + m.matx[3][3]
+	return &vec3{x / w, y / w, z / w}
+}
+func (m Matrix4x4) multDirMatrix(v *vec3) *vec3 {
+	x := v.x*m.matx[0][0] + v.y*m.matx[1][0] + v.z*m.matx[2][0]
+	y := v.x*m.matx[0][1] + v.y*m.matx[1][1] + v.z*m.matx[2][1]
+	z := v.x*m.matx[0][2] + v.y*m.matx[1][2] + v.z*m.matx[2][2]
+	return &vec3{x, y, z}
+}
 
 type Scene struct {
 	primitives []Primitive
 	cam        Camera
 }
 
-func getColor(ray *Ray, scene *Scene) (r uint8, g uint8, b uint8) {
+func raytrace(ray *Ray, scene *Scene, curDepth int) *vec3 {
 	var foundPrim Primitive = nil
 	color := &vec3{0, 0, 0}
 	dist := math.MaxFloat64
@@ -35,15 +52,16 @@ func getColor(ray *Ray, scene *Scene) (r uint8, g uint8, b uint8) {
 	}
 
 	if foundPrim == nil {
-		return 0, 0, 0
+		return &vec3{0, 0, 0}
 	}
 
 	switch foundPrim.(type) {
 	case Light:
-		return 255, 255, 255
+		return &vec3{1, 1, 1}
 	default:
 		// Intersection point
 		pi := ray.origin.add(ray.direction.scale(dist))
+		n := foundPrim.getNormal(pi)
 		//TODO: Would be better to maintain a separate list of lights
 		for _, lPrim := range scene.primitives {
 			switch lPrim.(type) {
@@ -51,7 +69,6 @@ func getColor(ray *Ray, scene *Scene) (r uint8, g uint8, b uint8) {
 				// Get direction to light
 				l := lPrim.getCenter().subtract(pi)
 				l.normalize()
-				n := foundPrim.getNormal(pi)
 				dot := n.dot(l)
 				if dot > 0 {
 					diff := dot * foundPrim.getDiffuse()
@@ -59,9 +76,20 @@ func getColor(ray *Ray, scene *Scene) (r uint8, g uint8, b uint8) {
 				}
 			}
 		}
+		// Reflection
+		reflectivity := foundPrim.getReflectivity()
+		if reflectivity > 0 {
+			R := ray.direction.subtract(n.scale(2 * ray.direction.dot(n)))
+			if curDepth < 8 { // TODO: Put trace depth and eps values in constants
+				// epsilon val is small
+				rRay := &Ray{pi.add(R.scale(0.0001)), R}
+				rCol := raytrace(rRay, scene, curDepth+1)
+				color = color.add(rCol.mult(foundPrim.getColor()).scale(reflectivity))
+			}
+		}
 	}
 
-	return color.toRGB()
+	return color
 }
 
 type WorkUnit struct {
@@ -73,38 +101,21 @@ type ResultUnit struct {
 	x, y    float64
 	r, g, b uint8
 }
-type Matrix4x4 struct {
-	matx [4][4]float64
-}
-
-func (m Matrix4x4) multVecMatrix(v *vec3) *vec3 {
-	x := v.x*m.matx[0][0] + v.y*m.matx[1][0] + v.z*m.matx[2][0] + m.matx[3][0]
-	y := v.x*m.matx[0][1] + v.y*m.matx[1][1] + v.z*m.matx[2][1] + m.matx[3][1]
-	z := v.x*m.matx[0][2] + v.y*m.matx[1][2] + v.z*m.matx[2][2] + m.matx[3][2]
-	w := v.x*m.matx[0][3] + v.y*m.matx[1][3] + v.z*m.matx[2][3] + m.matx[3][3]
-	return &vec3{x / w, y / w, z / w}
-}
-
-func (m Matrix4x4) multDirMatrix(v *vec3) *vec3 {
-	x := v.x*m.matx[0][0] + v.y*m.matx[1][0] + v.z*m.matx[2][0]
-	y := v.x*m.matx[0][1] + v.y*m.matx[1][1] + v.z*m.matx[2][1]
-	z := v.x*m.matx[0][2] + v.y*m.matx[1][2] + v.z*m.matx[2][2]
-	return &vec3{x, y, z}
-}
 
 func main() {
-	fmt.Println("HI!")
 	outi := image.NewNRGBA(image.Rect(0, 0, 512, 512))
 	scene := Scene{
-		primitives: []Primitive{Sphere{1, &vec3{0, 0, -1}, &Material{&vec3{1, 0, 0}, 0.5, 0.8}},
+		primitives: []Primitive{Sphere{1, &vec3{0, 1, -1}, &Material{&vec3{1, 1, 1}, 0.8, 0.2}},
 			Sphere{0.3, &vec3{0, 0, 0}, &Material{&vec3{0, 1, 0}, 0, 1}},
 			Plane{&vec3{2, 0, 0}, &vec3{-1, 0, 0}, &Material{&vec3{0, 0, 1}, 0, 1}},
 			Plane{&vec3{-2, 0, 0}, &vec3{1, 0, 0}, &Material{&vec3{1, 0, 1}, 0, 1}},
 			Plane{&vec3{0, 0, -2}, &vec3{0, 0, 1}, &Material{&vec3{1, 1, 1}, 0, 1}},
 			Plane{&vec3{0, -2, 0}, &vec3{0, 1, 0}, &Material{&vec3{1, 1, 1}, 0, 1}},
-			Light{&Sphere{0.1, &vec3{0, 0.5, 2}, &Material{&vec3{1, 1, 1}, 0, 0}}, &Material{&vec3{1, 1, 1}, 0, 0}}},
+			Light{&Sphere{0.1, &vec3{0.5, 0.5, 2}, &Material{&vec3{1, 1, 1}, 0, 0}}, &Material{&vec3{1, 1, 1}, 0, 0}}},
 		cam: Camera{&vec3{0, 0, 3}, &vec3{0, 0, 0}},
 	}
+
+	fmt.Println("Starting!")
 
 	imgSize := outi.Bounds().Size().X * outi.Bounds().Size().Y
 	jobs := make(chan WorkUnit, imgSize)
@@ -125,7 +136,7 @@ func main() {
 	for w := 1; w <= 8; w++ {
 		go func() {
 			for wu := range jobs {
-				r, g, b := getColor(wu.ray, wu.scene)
+				r, g, b := raytrace(wu.ray, wu.scene, 0).toRGB()
 				results <- ResultUnit{wu.x, wu.y, r, g, b}
 			}
 		}()
@@ -154,5 +165,5 @@ func main() {
 	defer toimg.Close()
 
 	png.Encode(toimg, outi)
-	fmt.Println("done")
+	fmt.Println("done!")
 }

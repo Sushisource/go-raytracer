@@ -57,7 +57,7 @@ func raytrace(ray *Ray, scene *Scene, curDepth int) *vec3 {
 
 	switch foundPrim.(type) {
 	case Light:
-		return &vec3{1, 1, 1}
+		return foundPrim.getColor()
 	default:
 		// Intersection point
 		pi := ray.origin.add(ray.direction.scale(ray.maxDistance))
@@ -71,8 +71,7 @@ func raytrace(ray *Ray, scene *Scene, curDepth int) *vec3 {
 				l := lPrim.getCenter().subtract(pi)
 				l.normalize()
 				// Shadow
-				shadeRay := &Ray{pi.add(l.scale(0.0001)), l, 0}
-				shadeRay.maxDistance = l.length()
+				shadeRay := &Ray{pi.add(l.scale(0.0001)), l, l.length()}
 				for _, sPrim := range scene.primitives {
 					switch sPrim.(type) {
 					case Light:
@@ -89,7 +88,7 @@ func raytrace(ray *Ray, scene *Scene, curDepth int) *vec3 {
 				dot := l.dot(n)
 				if dot > 0 {
 					diff := dot * foundPrim.getDiffuse() * shade
-					color = color.add(lPrim.getColor().mult(foundPrim.getColor())).scale(diff)
+					color = color.add(lPrim.getColor().mult(foundPrim.getColor()).scale(diff))
 				}
 				// Specular
 				Vs := ray.direction
@@ -130,13 +129,17 @@ type ResultUnit struct {
 func main() {
 	outi := image.NewNRGBA(image.Rect(0, 0, 512, 512))
 	scene := Scene{
-		primitives: []Primitive{Sphere{1, &vec3{0, 1, -1}, &Material{&vec3{1, 1, 1}, 0.8, 0.2, 0.5}},
-			Sphere{0.3, &vec3{0, 0, 0}, &Material{&vec3{0, 1, 0}, 0, 0.8, 0.5}},
+		primitives: []Primitive{
+			Sphere{0.3, &vec3{0, 0, 0}, &Material{&vec3{0, 1, 0}, 0.1, 0.8, 0.5}},
+			Sphere{.6, &vec3{-1, 1, -1}, &Material{&vec3{1, 1, 1}, 0.8, 0.4, 0.5}},
+			Sphere{.6, &vec3{-1, -1, -1}, &Material{&vec3{1, 1, 1}, 0.8, 0.4, 0.5}},
 			Plane{&vec3{2, 0, 0}, &vec3{-1, 0, 0}, &Material{&vec3{0, 0, 1}, 0, 1, 0}},
 			Plane{&vec3{-2, 0, 0}, &vec3{1, 0, 0}, &Material{&vec3{1, 0, 1}, 0, 1, 0}},
 			Plane{&vec3{0, 0, -2}, &vec3{0, 0, 1}, &Material{&vec3{1, 1, 1}, 0, 1, 0}},
 			Plane{&vec3{0, -2, 0}, &vec3{0, 1, 0}, &Material{&vec3{1, 1, 1}, 0, 1, 0}},
-			Light{&Sphere{0.1, &vec3{0.5, 0.5, 2}, &Material{&vec3{1, 1, 1}, 0, 0, 0}}, &Material{&vec3{1, 1, 1}, 0, 0, 0}}},
+			Light{&Sphere{0.1, &vec3{1.0, 1.0, 0}, &Material{&vec3{1, 1, 1}, 0, 0, 0}}, &Material{&vec3{0.5, 0.5, 0.5}, 0, 0, 0}},
+			Light{&Sphere{0.1, &vec3{1.0, -1.0, 0}, &Material{&vec3{1, 1, 1}, 0, 0, 0}}, &Material{&vec3{0.5, 0.5, 0.5}, 0, 0, 0}},
+		},
 		cam: Camera{&vec3{0, 0, 3}, &vec3{0, 0, 0}},
 	}
 
@@ -148,7 +151,7 @@ func main() {
 	screenX := float64(outi.Bounds().Size().X)
 	screenY := float64(outi.Bounds().Size().Y)
 	aspectRatio := screenX / screenY
-	fovDeg := 60.0
+	fovDeg := 70.0
 	// Convert to radians and divide by two
 	angle := math.Tan(fovDeg * math.Pi / 180 / 2)
 	var c2wmatrix [4][4]float64

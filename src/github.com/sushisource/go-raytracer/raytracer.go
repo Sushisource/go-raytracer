@@ -69,9 +69,10 @@ func raytrace(ray *Ray, scene *Scene, curDepth int) *vec3 {
 				shade := 1.0
 				// Get direction to light
 				l := lPrim.getCenter().subtract(pi)
+				tdist := l.length()
 				l.normalize()
-				// Shadow
-				shadeRay := &Ray{pi.add(l.scale(0.0001)), l, l.length()}
+				// Shadow TODO: Will need to expand for different light types
+				shadeRay := &Ray{pi.add(l.scale(0.0001)), l, tdist}
 				for _, sPrim := range scene.primitives {
 					switch sPrim.(type) {
 					case Light:
@@ -131,14 +132,17 @@ func main() {
 	scene := Scene{
 		primitives: []Primitive{
 			Sphere{0.3, &vec3{0, 0, 0}, &Material{&vec3{0, 1, 0}, 0.1, 0.8, 0.5}},
+			Sphere{0.1, &vec3{-.8, 0, 0}, &Material{&vec3{0, 1, 0}, 0.1, 0.9, 0.5}},
+			Sphere{0.3, &vec3{1, -1.1, -.41}, &Material{&vec3{0, 1, 0}, 0.1, 0.8, 0.5}},
 			Sphere{.6, &vec3{-1, 1, -1}, &Material{&vec3{1, 1, 1}, 0.8, 0.4, 0.5}},
 			Sphere{.6, &vec3{-1, -1, -1}, &Material{&vec3{1, 1, 1}, 0.8, 0.4, 0.5}},
 			Plane{&vec3{2, 0, 0}, &vec3{-1, 0, 0}, &Material{&vec3{0, 0, 1}, 0, 1, 0}},
 			Plane{&vec3{-2, 0, 0}, &vec3{1, 0, 0}, &Material{&vec3{1, 0, 1}, 0, 1, 0}},
 			Plane{&vec3{0, 0, -2}, &vec3{0, 0, 1}, &Material{&vec3{1, 1, 1}, 0, 1, 0}},
 			Plane{&vec3{0, -2, 0}, &vec3{0, 1, 0}, &Material{&vec3{1, 1, 1}, 0, 1, 0}},
-			Light{&Sphere{0.1, &vec3{1.0, 1.0, 0}, &Material{&vec3{1, 1, 1}, 0, 0, 0}}, &Material{&vec3{0.5, 0.5, 0.5}, 0, 0, 0}},
-			Light{&Sphere{0.1, &vec3{1.0, -1.0, 0}, &Material{&vec3{1, 1, 1}, 0, 0, 0}}, &Material{&vec3{0.5, 0.5, 0.5}, 0, 0, 0}},
+			Light{&Sphere{0.05, &vec3{1.0, 0, 0}, &Material{&vec3{1, 1, 1}, 0, 0, 0}}, &Material{&vec3{1, 1, 1}, 0, 0, 0}},
+			// Light{&Sphere{0.1, &vec3{1.0, 1.0, 0}, &Material{&vec3{1, 1, 1}, 0, 0, 0}}, &Material{&vec3{1, 0, 1}, 0, 0, 0}},
+			// Light{&Sphere{0.1, &vec3{1.0, -1.0, 0}, &Material{&vec3{1, 1, 1}, 0, 0, 0}}, &Material{&vec3{0, 1, 1}, 0, 0, 0}},
 		},
 		cam: Camera{&vec3{0, 0, 3}, &vec3{0, 0, 0}},
 	}
